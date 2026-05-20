@@ -47,6 +47,12 @@ settings: dict[str, Any] = {
 }
 
 
+
+
+def is_start_trigger(text: str) -> bool:
+    t = (text or '').strip().lower()
+    return t in {'/start', 'start', 'старт'} or t.startswith('/start ')
+
 def tg_api(method: str, payload: dict[str, Any]) -> dict[str, Any]:
     r = requests.post(f"{TG_API}/{method}", json=payload, timeout=20)
     r.raise_for_status()
@@ -265,7 +271,7 @@ def handle_owner_button(chat_id: int, text: str) -> str:
         _owner_state[chat_id] = "import_settings"
         return "Отправь JSON настроек одним сообщением"
 
-    if text == "/start":
+    if is_start_trigger(text):
         return "Панель управления активирована. Нажимай кнопки ниже."
     return "Нажми кнопку на панели ниже."
 
@@ -297,7 +303,7 @@ async def telegram_webhook(request: Request) -> JSONResponse:
     global RUNTIME_OWNER_CHAT_ID
 
     # bootstrap owner panel on /start if OWNER_CHAT_ID is not configured
-    if text == "/start" and RUNTIME_OWNER_CHAT_ID == 0:
+    if is_start_trigger(text) and RUNTIME_OWNER_CHAT_ID == 0:
         RUNTIME_OWNER_CHAT_ID = chat_id
         tg_api("sendMessage", {
             "chat_id": chat_id,
