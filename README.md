@@ -1,4 +1,4 @@
-# Telegram Business автоответчик (Vercel) — расширенная панель
+# Telegram автоответчик (Vercel) — расширенная панель
 
 Теперь всё управление через кнопки + добавлены новые фишки.
 
@@ -13,6 +13,11 @@
 - Редактирование текстов ответа по времени
 - Export/Import настроек JSON
 - Статус и статистика
+
+## Обычный бот vs Telegram Business
+Бот работает **как обычный бот** (без Telegram Business): панель, `/start`, автоответы по обычным сообщениям (`message`) доступны.
+
+Telegram Business нужен только для сценария, когда сообщения приходят как `business_message` и бот отвечает в business-контексте.
 
 ## Панель владельца
 Работает только для `OWNER_CHAT_ID`.
@@ -30,7 +35,7 @@
 
 ## Env
 - `TELEGRAM_BOT_TOKEN` (обязательно)
-- `OWNER_CHAT_ID` (обязательно)
+- `OWNER_CHAT_ID` (опционально, если не задан — первый `/start` назначит owner до рестарта)
 - `TELEGRAM_WEBHOOK_SECRET` (рекомендуется)
 - `NVIDIA_API_KEY` (опционально)
 - `TIMEZONE_OFFSET_HOURS` (default 3)

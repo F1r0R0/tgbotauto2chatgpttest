@@ -333,9 +333,10 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         except Exception:
             reply_text = settings["nvidia_fail_text"]
 
-    if settings["forward_to_owner"] and OWNER_CHAT_ID:
+    owner_chat_id = get_owner_chat_id()
+    if settings["forward_to_owner"] and owner_chat_id:
         preview = text[:800]
-        tg_api("sendMessage", {"chat_id": OWNER_CHAT_ID, "text": f"📩 Новое сообщение от chat_id={chat_id}:\n{preview}"})
+        tg_api("sendMessage", {"chat_id": owner_chat_id, "text": f"📩 Новое сообщение от chat_id={chat_id}:\n{preview}"})
 
     payload = {"chat_id": chat_id, "text": reply_text}
     if business_connection_id:
