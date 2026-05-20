@@ -30,3 +30,14 @@ curl -X POST "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook" \
   }'
 ```
 4. В Telegram Business подключи бота и настрой где он отвечает (это делается в Telegram UI).
+
+
+## Если Vercel ругается на `functions` pattern
+Если видишь ошибку:
+`The pattern "api/webhook.py" defined in functions doesn't match any Serverless Functions` — используй минимальный `vercel.json` с `rewrites` (как в этом репозитории сейчас), без блока `functions`.
+
+Также при импорте проекта выбери:
+- **Framework Preset**: `Other`
+- **Root Directory**: корень репозитория
+
+После этого redeploy.
