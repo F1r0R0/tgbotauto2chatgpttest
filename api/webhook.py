@@ -16,6 +16,7 @@ TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
 NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
 WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
 OWNER_CHAT_ID = int(os.getenv("OWNER_CHAT_ID", "0"))
+RUNTIME_OWNER_CHAT_ID = OWNER_CHAT_ID
 TIMEZONE_OFFSET_HOURS = int(os.getenv("TIMEZONE_OFFSET_HOURS", "3"))
 FORWARD_TO_OWNER = os.getenv("FORWARD_TO_OWNER", "1") == "1"
 
@@ -128,6 +129,10 @@ def nvidia_check(text: str) -> None:
     }
     r = requests.post(NVIDIA_URL, headers=headers, json=payload, timeout=12)
     r.raise_for_status()
+
+
+def get_owner_chat_id() -> int:
+    return RUNTIME_OWNER_CHAT_ID
 
 
 def owner_status_text() -> str:
@@ -289,7 +294,19 @@ async def telegram_webhook(request: Request) -> JSONResponse:
     if not text or not chat_id:
         return JSONResponse({"ok": True, "skipped": "non_text_or_no_chat"})
 
-    if OWNER_CHAT_ID and chat_id == OWNER_CHAT_ID:
+    global RUNTIME_OWNER_CHAT_ID
+
+    # bootstrap owner panel on /start if OWNER_CHAT_ID is not configured
+    if text == "/start" and RUNTIME_OWNER_CHAT_ID == 0:
+        RUNTIME_OWNER_CHAT_ID = chat_id
+        tg_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": "✅ Панель активирована для этого чата. Если нужно закрепить навсегда — укажи OWNER_CHAT_ID в env.",
+            "reply_markup": owner_keyboard(),
+        })
+        return JSONResponse({"ok": True, "owner_bootstrap": True})
+
+    if get_owner_chat_id() and chat_id == get_owner_chat_id():
         resp = handle_owner_button(chat_id, text)
         tg_api("sendMessage", {"chat_id": chat_id, "text": resp, "reply_markup": owner_keyboard()})
         return JSONResponse({"ok": True, "owner_panel": True})
