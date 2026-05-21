@@ -341,6 +341,7 @@ def healthcheck() -> dict[str, str]:
 
 @app.post("/api/webhook")
 async def telegram_webhook(request: Request) -> JSONResponse:
+    ensure_telegram_webhook()
     if WEBHOOK_SECRET:
         token = request.headers.get("x-telegram-bot-api-secret-token", "")
         if token != WEBHOOK_SECRET:
