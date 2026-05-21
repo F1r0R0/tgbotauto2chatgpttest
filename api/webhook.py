@@ -1,6 +1,17 @@
 import json
 import logging
 import os
+
+from api.config import (
+    DEFAULT_FORWARD_TO_OWNER,
+    DEFAULT_OWNER_CHAT_ID,
+    DEFAULT_TIMEZONE_OFFSET_HOURS,
+    DEFAULT_WEBHOOK_SECRET,
+    NVIDIA_API_KEY as CONFIG_NVIDIA_API_KEY,
+    NVIDIA_MODEL,
+    NVIDIA_URL,
+    TELEGRAM_BOT_TOKEN as CONFIG_TELEGRAM_BOT_TOKEN,
+)
 from datetime import datetime, timezone
 from threading import Lock
 from typing import Any
@@ -12,21 +23,61 @@ from fastapi.responses import JSONResponse
 app = FastAPI()
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 
-TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
-NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", "")
-WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", "")
-OWNER_CHAT_ID = int(os.getenv("OWNER_CHAT_ID", "0"))
+TELEGRAM_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", CONFIG_TELEGRAM_BOT_TOKEN)
+NVIDIA_API_KEY = os.getenv("NVIDIA_API_KEY", CONFIG_NVIDIA_API_KEY)
+WEBHOOK_SECRET = os.getenv("TELEGRAM_WEBHOOK_SECRET", DEFAULT_WEBHOOK_SECRET)
+OWNER_CHAT_ID = int(os.getenv("OWNER_CHAT_ID", str(DEFAULT_OWNER_CHAT_ID)))
 RUNTIME_OWNER_CHAT_ID = OWNER_CHAT_ID
-TIMEZONE_OFFSET_HOURS = int(os.getenv("TIMEZONE_OFFSET_HOURS", "3"))
-FORWARD_TO_OWNER = os.getenv("FORWARD_TO_OWNER", "1") == "1"
+TIMEZONE_OFFSET_HOURS = int(os.getenv("TIMEZONE_OFFSET_HOURS", str(DEFAULT_TIMEZONE_OFFSET_HOURS)))
+FORWARD_TO_OWNER = os.getenv("FORWARD_TO_OWNER", "1" if DEFAULT_FORWARD_TO_OWNER else "0") == "1"
 
 TG_API = f"https://api.telegram.org/bot{TELEGRAM_TOKEN}"
-NVIDIA_URL = "https://integrate.api.nvidia.com/v1/chat/completions"
+
 
 _lock = Lock()
 _last_reply_by_chat: dict[int, float] = {}
 _chat_stats: dict[int, int] = {}
 _owner_state: dict[int, str] = {}
+
+
+_webhook_registered = False
+
+
+def resolve_public_base_url() -> str:
+    explicit = os.getenv("PUBLIC_BASE_URL", "").strip()
+    if explicit:
+        return explicit.rstrip("/")
+    vercel_url = os.getenv("VERCEL_URL", "").strip()
+    if vercel_url:
+        return f"https://{vercel_url}".rstrip("/")
+    return ""
+
+
+def ensure_telegram_webhook() -> None:
+    global _webhook_registered
+    if _webhook_registered or not TELEGRAM_TOKEN:
+        return
+
+    base_url = resolve_public_base_url()
+    if not base_url:
+        return
+
+    payload: dict[str, Any] = {"url": f"{base_url}/api/webhook"}
+
+    if WEBHOOK_SECRET:
+        payload["secret_token"] = WEBHOOK_SECRET
+
+    try:
+        r = requests.post(f"{TG_API}/setWebhook", json=payload, timeout=20)
+        r.raise_for_status()
+        data = r.json()
+        if data.get("ok"):
+            _webhook_registered = True
+            logging.info("Telegram webhook ensured: %s", payload["url"])
+        else:
+            logging.warning("Failed to ensure Telegram webhook: %s", data)
+    except Exception as exc:
+        logging.warning("setWebhook failed: %s", exc)
 
 settings: dict[str, Any] = {
     "enabled": True,
@@ -134,7 +185,7 @@ def extract_message(update: dict[str, Any]) -> tuple[dict[str, Any] | None, str 
 def nvidia_check(text: str) -> None:
     headers = {"Authorization": f"Bearer {NVIDIA_API_KEY}", "Accept": "application/json", "Content-Type": "application/json"}
     payload = {
-        "model": "qwen/qwen3.5-397b-a17b",
+        "model": NVIDIA_MODEL,
         "messages": [{"role": "system", "content": "Коротко."}, {"role": "user", "content": text}],
         "max_tokens": 32,
         "temperature": 0.1,
@@ -290,6 +341,7 @@ def healthcheck() -> dict[str, str]:
 
 @app.post("/api/webhook")
 async def telegram_webhook(request: Request) -> JSONResponse:
+    ensure_telegram_webhook()
     if WEBHOOK_SECRET:
         token = request.headers.get("x-telegram-bot-api-secret-token", "")
         if token != WEBHOOK_SECRET:
