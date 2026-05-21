@@ -324,6 +324,13 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         tg_api("sendMessage", {"chat_id": chat_id, "text": resp, "reply_markup": owner_keyboard()})
         return JSONResponse({"ok": True, "owner_panel": True})
 
+    if is_start_trigger(text):
+        tg_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": "✅ Бот на связи. Напишите сообщение — я отвечу автоматически по текущим настройкам.",
+        })
+        return JSONResponse({"ok": True, "start_ack": True})
+
     if settings["allowlist_mode"] and chat_id not in settings["allowed_chats"]:
         return JSONResponse({"ok": True, "skipped": "not_in_allowlist"})
     if not settings["enabled"]:
