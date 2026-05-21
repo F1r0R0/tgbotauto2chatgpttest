@@ -51,7 +51,14 @@ settings: dict[str, Any] = {
 
 def is_start_trigger(text: str) -> bool:
     t = (text or '').strip().lower()
-    return t in {'/start', 'start', 'старт'} or t.startswith('/start ')
+    if t in {'start', 'старт'}:
+        return True
+    if not t.startswith('/start'):
+        return False
+
+    # Supports: /start, /start payload, /start@BotName, /start@BotName payload
+    head = t.split(maxsplit=1)[0]
+    return head == '/start' or head.startswith('/start@')
 
 def tg_api(method: str, payload: dict[str, Any]) -> dict[str, Any]:
     r = requests.post(f"{TG_API}/{method}", json=payload, timeout=20)
@@ -316,6 +323,13 @@ async def telegram_webhook(request: Request) -> JSONResponse:
         resp = handle_owner_button(chat_id, text)
         tg_api("sendMessage", {"chat_id": chat_id, "text": resp, "reply_markup": owner_keyboard()})
         return JSONResponse({"ok": True, "owner_panel": True})
+
+    if is_start_trigger(text):
+        tg_api("sendMessage", {
+            "chat_id": chat_id,
+            "text": "✅ Бот на связи. Напишите сообщение — я отвечу автоматически по текущим настройкам.",
+        })
+        return JSONResponse({"ok": True, "start_ack": True})
 
     if settings["allowlist_mode"] and chat_id not in settings["allowed_chats"]:
         return JSONResponse({"ok": True, "skipped": "not_in_allowlist"})
